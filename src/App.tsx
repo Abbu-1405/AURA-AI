@@ -270,7 +270,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen lg:h-screen w-full bg-[#050505] text-[#F5F5F5] flex flex-col font-sans selection:bg-[#C9A227]/30 selection:text-white p-4 md:p-6 border-4 md:border-8 border-[#1A1A1A] overflow-y-auto lg:overflow-hidden">
+    <div className="min-h-screen w-full bg-[#050505] text-[#F5F5F5] flex flex-col font-sans selection:bg-[#C9A227]/30 selection:text-white p-4 md:p-6 border-4 md:border-8 border-[#1A1A1A] overflow-y-auto">
       
       {/* Premium Top Navigation Bar */}
       <header className="sticky top-0 z-30 bg-[#050505]/95 backdrop-blur border-b border-white/10 px-2 pb-4 mb-4 flex items-center justify-between">
@@ -329,7 +329,7 @@ export default function App() {
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 w-full mx-auto p-2 md:p-4 flex flex-col space-y-8 relative overflow-y-auto lg:overflow-hidden min-h-0 custom-scrollbar">
+      <main className="flex-1 w-full mx-auto p-2 md:p-4 flex flex-col space-y-8 relative overflow-y-auto min-h-0 custom-scrollbar">
         
         {/* Dynamic Studio Logs / History Slide-Over Panel */}
         <AnimatePresence>
