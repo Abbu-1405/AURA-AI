@@ -1,0 +1,48 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  /* Aura Dark Luxury Minimal Colors */
+  --color-bg-deep: #050505;
+  --color-bg-charcoal: #121212;
+  --color-bg-card: #1A1A1A;
+  --color-text-luxury: #F5F5F5;
+  --color-text-muted: #A3A3A3;
+  --color-accent-gold: #C9A227;
+}
+
+/* Custom styles for glowing details and premium scrollbar */
+@utility text-glow-gold {
+  text-shadow: 0 0 10px rgba(201, 162, 39, 0.3);
+}
+
+@utility border-gold-glow {
+  box-shadow: 0 0 15px rgba(201, 162, 39, 0.1);
+}
+
+body {
+  background-color: #050505;
+  color: #F5F5F5;
+  font-family: var(--font-sans);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #050505;
+}
+::-webkit-scrollbar-thumb {
+  background: #1A1A1A;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #C9A227;
+}
+

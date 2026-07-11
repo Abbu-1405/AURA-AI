@@ -1,0 +1,6 @@
+{
+  "name": "Aura AI",
+  "description": "Your AI Creative Director. Refine designs with visual critique on Typography, Color, Layout, and Background, or utilize standalone Color Extractor and Professional Color Picker utilities.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
