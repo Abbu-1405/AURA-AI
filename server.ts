@@ -37,6 +37,41 @@ if (apiKey && apiKey !== "MY_GEMINI_API_KEY") {
   console.log("Aura AI: Running in fallback mode. (Configure GEMINI_API_KEY in secrets for live analyses).");
 }
 
+// Helper function to call generateContent with retry and model-level fallback (handles 503/UNAVAILABLE or rate limits gracefully)
+async function generateContentWithFallback(params: any, primaryModel: string = "gemini-3.5-flash"): Promise<any> {
+  const modelsToTry = [
+    primaryModel,
+    "gemini-3.1-flash-lite",
+    "gemini-2.5-flash"
+  ];
+
+  let lastError: any = null;
+
+  for (const model of modelsToTry) {
+    if (!aiClient) {
+      throw new Error("Gemini AI client is not initialized.");
+    }
+    try {
+      console.log(`Aura AI: Requesting generateContent using model: ${model}...`);
+      const response = await aiClient.models.generateContent({
+        ...params,
+        model: model
+      });
+      if (response && response.text) {
+        console.log(`Aura AI: Successfully generated content using model: ${model}`);
+        return response;
+      }
+    } catch (err: any) {
+      console.warn(`Aura AI: Model ${model} call failed:`, err.message || err);
+      lastError = err;
+      // Wait briefly before fallback or retry (especially helpful for transient 503s)
+      await new Promise(resolve => setTimeout(resolve, 800));
+    }
+  }
+
+  throw lastError || new Error("All model calls failed.");
+}
+
 // Dynamically completes a report with detailed audit scores, breakdowns, and step-by-step evaluations.
 function completeReport(raw: any, style: DesignStyle): CreativeDirectorReport {
   const safeStr = (v: any, fallback: string) => typeof v === 'string' && v.trim().length > 0 ? v.trim() : fallback;
@@ -1568,8 +1603,7 @@ Ensure your output perfectly matches the expected JSON structure. Do not use mar
           },
         };
 
-        const response = await aiClient.models.generateContent({
-          model: "gemini-3.5-flash",
+        const response = await generateContentWithFallback({
           contents: {
             parts: [
               imagePart,
@@ -1876,8 +1910,7 @@ Answer the user's question with precise, professional, educational, and actionab
         
         chatParts.push({ text: `User Question: "${message}"` });
 
-        const response = await aiClient.models.generateContent({
-          model: "gemini-3.5-flash",
+        const response = await generateContentWithFallback({
           contents: chatParts,
           config: {
             systemInstruction: creativeDirectorInstruction,

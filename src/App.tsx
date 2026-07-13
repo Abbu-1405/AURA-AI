@@ -119,7 +119,7 @@ export default function App() {
     localStorage.removeItem('aura_user_email');
   };
 
-  // Convert uploaded image file to base64
+  // Convert uploaded image file to base64 with downscaling/compression
   const processFile = (file: File) => {
     if (!file.type.startsWith('image/')) {
       alert('Aura AI accepts image file formats only (PNG, JPG, WEBP).');
@@ -129,9 +129,41 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = (e) => {
       if (e.target?.result) {
-        setUploadedImage(e.target.result as string);
-        // Clear previous report if loading a new image
-        setReport(null);
+        const img = new Image();
+        img.onload = () => {
+          // Downscale the image to keep size small (< 1MB) for reliable api calls and faster latency
+          const maxDim = 1200;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            // Export as JPEG with 0.8 quality to shrink file size significantly
+            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+            setUploadedImage(compressedBase64);
+            setReport(null);
+          } else {
+            // Fallback to original
+            setUploadedImage(e.target?.result as string);
+            setReport(null);
+          }
+        };
+        img.src = e.target.result as string;
       }
     };
     reader.readAsDataURL(file);
