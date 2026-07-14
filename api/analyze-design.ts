@@ -1,43 +1,28 @@
-import express from "express";
-import path from "path";
-import dotenv from "dotenv";
-import { createServer as createViteServer } from "vite";
-import { GoogleGenAI, Type } from "@google/genai";
-import { CreativeDirectorReport, DesignStyle } from "./src/types";
-import { 
-  generateContentWithFallback, 
-  sanitizeReport, 
-  getPlaceholderReport, 
-  getAiClient 
-} from "./src/api-core";
+import { Type } from "@google/genai";
+import { generateContentWithFallback, sanitizeReport, getPlaceholderReport, getAiClient } from "../src/api-core";
+import { DesignStyle } from "../src/types";
 
-// Load environment variables
-dotenv.config();
+export default async function handler(req: any, res: any) {
+  // Only accept POST requests
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method Not Allowed. Use POST instead." });
+  }
 
-const app = express();
-const PORT = 3000;
-
-// Set up body parser with adequate limit for high-resolution images
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
-
-// REST API endpoint: /api/analyze-design
-app.post("/api/analyze-design", async (req, res) => {
-  // Validate API key presence for compatibility with the Vercel requirement
+  // Validate API key presence
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
     return res.status(500).json({ error: "Gemini API key is missing." });
   }
 
   try {
-    const { image, style } = req.body;
+    const { image, style } = req.body || {};
 
     if (!image) {
       return res.status(400).json({ error: "Missing image payload. Please upload a design image." });
     }
 
     const selectedStyle: DesignStyle = style || 'Minimal';
-    console.log(`Aura AI (Local): Received design analysis request for style: ${selectedStyle}`);
+    console.log(`Aura AI (Serverless): Received design analysis request for style: ${selectedStyle}`);
 
     // Parse the image payload (extract base64 and mimeType)
     let base64Data = image;
@@ -62,7 +47,7 @@ app.post("/api/analyze-design", async (req, res) => {
 
     if (aiClient) {
       try {
-        console.log("Aura AI (Local): Sending request to Gemini Vision API using gemini-3.5-flash...");
+        console.log("Aura AI (Serverless): Sending request to Gemini Vision API using gemini-3.5-flash...");
 
         const prompt = `You are Aura AI, an elite professional design judge and senior Creative Director at a top-tier design studio.
 You have a "Dark Luxury Minimal" aesthetic: your feedback is honest, sharp, educational, specific, and practical.
@@ -314,7 +299,7 @@ Ensure your output perfectly matches the expected JSON structure. Do not use mar
 
         if (response && response.text) {
           let rawText = response.text.trim();
-          console.log("Aura AI (Local): Gemini response received.");
+          console.log("Aura AI (Serverless): Gemini response received.");
           
           if (rawText.startsWith("```")) {
             rawText = rawText.replace(/^```(?:json)?\n/, "");
@@ -326,158 +311,35 @@ Ensure your output perfectly matches the expected JSON structure. Do not use mar
           try {
             parsedReport = JSON.parse(rawText);
           } catch (jsonErr: any) {
-            console.error("Aura AI (Local): JSON parsing error on response text:", jsonErr, rawText);
+            console.error("Aura AI (Serverless): JSON parsing error on response text:", jsonErr, rawText);
             throw jsonErr;
           }
           
           const fullReport = sanitizeReport(parsedReport, selectedStyle);
-          return res.json({ success: true, report: fullReport });
+          return res.status(200).json({ success: true, report: fullReport });
         } else {
           throw new Error("Empty response text from Gemini API.");
         }
       } catch (apiError: any) {
-        console.error("Aura AI (Local): Gemini API call failed, using high-quality custom fallback:", apiError);
+        console.error("Aura AI (Serverless): Gemini API call failed, using high-quality custom fallback:", apiError);
         const fallbackReport = getPlaceholderReport(selectedStyle);
-        return res.json({
+        return res.status(200).json({
           success: true,
           report: fallbackReport,
           notice: "Analysis processed by local fallback engine (API service limit or invalid key)."
         });
       }
     } else {
-      console.log("Aura AI (Local): Running in fallback mode. serving placeholder analysis.");
+      console.log("Aura AI (Serverless): API client missing, serving fallback report.");
       const fallbackReport = getPlaceholderReport(selectedStyle);
-      return res.json({
+      return res.status(200).json({
         success: true,
         report: fallbackReport,
         notice: "Curated analysis simulated."
       });
     }
   } catch (error: any) {
-    console.error("Aura AI (Local): Error in /api/analyze-design:", error);
-    res.status(500).json({ error: error?.message || "Failed to analyze design image." });
+    console.error("Aura AI (Serverless): Error in /api/analyze-design:", error);
+    return res.status(500).json({ error: error?.message || "Failed to analyze design image." });
   }
-});
-
-// REST API endpoint: /api/design-chat
-app.post("/api/design-chat", async (req, res) => {
-  // Validate API key presence for compatibility with the Vercel requirement
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
-    return res.status(500).json({ error: "Gemini API key is missing." });
-  }
-
-  try {
-    const { message, history, report } = req.body;
-
-    if (!message) {
-      return res.status(400).json({ error: "Missing message payload." });
-    }
-
-    console.log("Aura AI (Local): Received design chat inquiry:", message.substring(0, 60));
-
-    const creativeDirectorInstruction = `You are Aura AI, a senior professional Creative Director in a high-end dark luxury design studio. 
-You speak with elegance, authority, and professional weight. You avoid friendly, over-enthusiastic, or generic chatbot replies. 
-You are here to answer follow-up questions regarding a design report.
-
-Here is the current analysis report context you made for this design:
-Style: ${report?.styleSelected || 'Minimal'}
-Verdict: ${report?.overallVerdict || 'Needs layout discipline and refinement.'}
-Typography Problems: ${report?.typography?.problems?.join(', ') || 'Poor hierarchy'}
-Color Advice: ${report?.color?.harmonyAndContrast || 'Lacks professional contrast'}
-Layout Advice: ${report?.sizePositioning?.layoutImprovements?.join(', ') || 'No defined layout structure'}
-Background Advice: ${report?.background?.betterBackgroundIdeas?.join(', ') || 'Standard backdrop'}
-
-Answer the user's question with precise, professional, educational, and actionable design insights. Keep the tone sophisticated, honest, and direct (Creative Director style). Avoid markdown bullet lists if you can describe them in flowing, professional prose, or use brief elegant dashes if necessary.`;
-
-    const aiClient = getAiClient();
-
-    if (aiClient) {
-      try {
-        console.log("Aura AI (Local): Querying Gemini Chat for follow-up...");
-        
-        // Map history to Gemini format if present
-        const chatParts = [];
-        if (history && history.length > 0) {
-          // Keep only last 10 messages to avoid token bloat
-          const recentHistory = history.slice(-10);
-          for (const msg of recentHistory) {
-            chatParts.push({
-              text: `${msg.sender === 'user' ? 'User' : 'Aura AI'}: ${msg.text}`
-            });
-          }
-        }
-        
-        chatParts.push({ text: `User Question: "${message}"` });
-
-        const response = await generateContentWithFallback({
-          contents: chatParts,
-          config: {
-            systemInstruction: creativeDirectorInstruction,
-            temperature: 0.7,
-          }
-        });
-
-        if (response && response.text) {
-          return res.json({ success: true, answer: response.text.trim() });
-        } else {
-          throw new Error("Empty response text from Gemini Chat API.");
-        }
-      } catch (chatError) {
-        console.error("Aura AI (Local): Chat API error, using intelligent fallback response:", chatError);
-      }
-    }
-
-    // Creative fallback generator based on typical creative director guidelines
-    const msgLower = message.toLowerCase();
-    let reply = "As a Creative Director, I advise looking closely at your structural borders. To make the design feel premium, you should reduce all heavy visual elements, emphasize the alignment grid, and add at least 30% empty padding space around your elements. A luxury style is achieved through absolute restraint.";
-
-    if (msgLower.includes("font") || msgLower.includes("typography") || msgLower.includes("text")) {
-      reply = `Typography defines the voice of your brand. If you want to elevate this design, replace standard bold text with lightweight editorial serif fonts like 'Cormorant Garamond' or geometric sans-serifs like 'Space Grotesk'. Ensure your subtitles have generous letter-spacing (at least 0.2em) and are in uppercase. This immediately shifts the mood from a generic catalog to an art-gallery edition.`;
-    } else if (msgLower.includes("color") || msgLower.includes("contrast") || msgLower.includes("palette")) {
-      reply = `In professional branding, color must serve a strict psychological purpose. Currently, you should restrict your palette to exactly three colors: a canvas foundation (dark graphite or warm paper-black), a crisp primary typography hue (ivory white), and a single strategic accent (like Aura Gold #C9A227) applied only to critical elements. Eliminate unnecessary background color shapes.`;
-    } else if (msgLower.includes("premium") || msgLower.includes("luxury") || msgLower.includes("expensive")) {
-      reply = `To make the design look expensive and premium, focus on two rules: high typographic contrast and generous negative space. Do not place text over crowded image segments. Instead, crop your images cleanly inside elegant 1px-bordered dark cards, frame the design with clean, spacious margins, and reduce the sizes of all secondary elements so the main heading has grand scale.`;
-    } else if (msgLower.includes("layout") || msgLower.includes("move") || msgLower.includes("position")) {
-      reply = `We need to introduce grid discipline. Ensure all visual elements align perfectly along the same imaginary vertical or horizontal margins. Use asymmetrical positioning to create a slow, editorial rhythm—for example, float a delicate category label rotated -90 degrees in the left margin, and offset your central text block to the right, balanced by empty space.`;
-    } else if (msgLower.includes("background") || msgLower.includes("texture") || msgLower.includes("blur")) {
-      reply = `The background should never compete with your visual subjects. I suggest a deep charcoal base (#121212) layered with a high-contrast noise grain at 2% opacity to provide organic texture. If you must use visual backdrops, implement a soft 40px backdrop-filter blur on your floating cards to separate them cleanly from the background noise.`;
-    }
-
-    // Simulate short typing delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    return res.json({ success: true, answer: reply });
-
-  } catch (error: any) {
-    console.error("Aura AI (Local): Error in /api/design-chat:", error);
-    res.status(500).json({ error: error?.message || "Failed to generate AI response." });
-  }
-});
-
-// Configure Vite or Static File Serving depending on Environment
-async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
-    // Development Mode with Vite Middleware
-    console.log("Aura AI: Launching development server with Vite middleware...");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    // Production Mode serving compiled static assets
-    console.log("Aura AI: Launching production server...");
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-  }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Aura AI is active and streaming on http://0.0.0.0:${PORT}`);
-  });
 }
-
-startServer();

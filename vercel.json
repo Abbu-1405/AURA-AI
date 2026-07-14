@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/analyze-design",
+      "destination": "/api/analyze-design.ts"
+    },
+    {
+      "source": "/api/design-chat",
+      "destination": "/api/design-chat.ts"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
